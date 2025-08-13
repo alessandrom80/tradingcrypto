@@ -1,0 +1,54 @@
+2025-05-24 13:08:37,615 DEBUG Initializing HTTP session.
+2025-05-24 13:08:37,617 DEBUG Starting new HTTPS connection (1): api.bybit.com:443
+2025-05-24 13:08:38,094 DEBUG https://api.bybit.com:443 "GET /v5/market/tickers?category=linear&symbol=DOTUSDT HTTP/1.1" 200 710
+2025-05-24 13:08:38,605 DEBUG https://api.bybit.com:443 "GET /v5/account/wallet-balance?accountType=UNIFIED&coin=USDT HTTP/1.1" 200 855
+2025-05-24 13:08:39,091 DEBUG https://api.bybit.com:443 "POST /v5/order/create HTTP/1.1" 200 131
+2025-06-08 08:53:42,233 DEBUG Initializing HTTP session.
+2025-06-08 08:53:42,237 DEBUG Starting new HTTPS connection (1): api.bybit.com:443
+2025-06-08 08:53:42,414 DEBUG https://api.bybit.com:443 "GET /v5/market/tickers?category=linear&symbol=COTIUSDT HTTP/1.1" 200 717
+2025-06-08 08:53:42,607 DEBUG https://api.bybit.com:443 "GET /v5/account/wallet-balance?accountType=UNIFIED&coin=USDT HTTP/1.1" 200 854
+2025-06-08 08:53:42,800 DEBUG https://api.bybit.com:443 "POST /v5/order/create HTTP/1.1" 200 131
+2025-06-09 11:27:15,227 DEBUG Initializing HTTP session.
+2025-06-09 11:27:15,230 DEBUG Starting new HTTPS connection (1): api.bybit.com:443
+2025-06-09 11:27:15,404 DEBUG https://api.bybit.com:443 "GET /v5/market/tickers?category=linear&symbol=HBARUSDT HTTP/1.1" 200 729
+2025-06-09 11:27:15,590 DEBUG https://api.bybit.com:443 "GET /v5/account/wallet-balance?accountType=UNIFIED&coin=USDT HTTP/1.1" 200 810
+2025-06-09 11:27:15,766 DEBUG https://api.bybit.com:443 "POST /v5/order/create HTTP/1.1" 200 141
+2025-06-09 11:27:15,938 DEBUG https://api.bybit.com:443 "GET /v5/position/list?category=linear&symbol=HBARUSDT HTTP/1.1" 200 858
+2025-06-09 11:27:16,099 DEBUG https://api.bybit.com:443 "POST /v5/position/set-leverage HTTP/1.1" 200 76
+2025-06-09 11:27:16,282 DEBUG https://api.bybit.com:443 "GET /v5/order/realtime?category=linear&symbol=HBARUSDT HTTP/1.1" 200 2977
+2025-06-11 20:20:15,873 DEBUG Initializing HTTP session.
+2025-06-11 20:20:15,877 DEBUG Starting new HTTPS connection (1): api.bybit.com:443
+2025-06-11 20:20:16,055 DEBUG https://api.bybit.com:443 "GET /v5/market/tickers?category=linear&symbol=AVAXUSDT HTTP/1.1" 200 712
+2025-06-11 20:20:16,230 DEBUG https://api.bybit.com:443 "GET /v5/account/wallet-balance?accountType=UNIFIED&coin=USDT HTTP/1.1" 200 811
+2025-06-11 20:20:16,419 DEBUG https://api.bybit.com:443 "POST /v5/order/create HTTP/1.1" 200 141
+2025-06-11 20:20:16,604 DEBUG https://api.bybit.com:443 "GET /v5/position/list?category=linear&symbol=AVAXUSDT HTTP/1.1" 200 797
+2025-06-11 20:20:16,787 DEBUG https://api.bybit.com:443 "GET /v5/order/realtime?category=linear&symbol=AVAXUSDT HTTP/1.1" 200 1118
+2025-06-13 20:41:58,966 DEBUG Initializing HTTP session.
+2025-06-13 20:41:58,969 DEBUG Starting new HTTPS connection (1): api.bybit.com:443
+2025-06-13 20:41:59,149 DEBUG https://api.bybit.com:443 "GET /v5/market/tickers?category=linear&symbol=DOTUSDT HTTP/1.1" 200 720
+2025-06-13 20:41:59,628 DEBUG https://api.bybit.com:443 "GET /v5/account/wallet-balance?accountType=UNIFIED&coin=USDT HTTP/1.1" 200 811
+2025-06-13 20:42:00,118 DEBUG https://api.bybit.com:443 "POST /v5/order/create HTTP/1.1" 200 141
+2025-06-13 20:42:00,637 DEBUG https://api.bybit.com:443 "GET /v5/position/list?category=linear&symbol=DOTUSDT HTTP/1.1" 200 873
+2025-06-13 20:42:00,810 DEBUG https://api.bybit.com:443 "POST /v5/position/set-leverage HTTP/1.1" 200 76
+2025-06-13 20:42:00,988 DEBUG https://api.bybit.com:443 "GET /v5/order/realtime?category=linear&symbol=DOTUSDT HTTP/1.1" 200 2023
+2025-06-17 17:05:26,759 DEBUG Initializing HTTP session.
+2025-06-17 17:05:26,762 DEBUG Starting new HTTPS connection (1): api.bybit.com:443
+2025-06-17 17:05:26,948 DEBUG https://api.bybit.com:443 "GET /v5/market/tickers?category=linear&symbol=ETCUSDT HTTP/1.1" 200 715
+2025-06-17 17:05:27,146 DEBUG https://api.bybit.com:443 "GET /v5/account/wallet-balance?accountType=UNIFIED&coin=USDT HTTP/1.1" 200 801
+2025-06-17 17:05:27,350 DEBUG https://api.bybit.com:443 "POST /v5/order/create HTTP/1.1" 200 141
+2025-06-17 17:05:27,535 DEBUG https://api.bybit.com:443 "GET /v5/position/list?category=linear&symbol=ETCUSDT HTTP/1.1" 200 785
+2025-06-17 17:05:27,734 DEBUG https://api.bybit.com:443 "POST /v5/position/set-leverage HTTP/1.1" 200 76
+2025-06-17 17:05:27,919 DEBUG https://api.bybit.com:443 "GET /v5/order/realtime?category=linear&symbol=ETCUSDT HTTP/1.1" 200 1116
+2025-06-23 18:08:17,466 DEBUG Initializing HTTP session.
+2025-06-23 18:08:17,468 DEBUG Starting new HTTPS connection (1): api.bybit.com:443
+2025-06-23 18:08:17,654 DEBUG https://api.bybit.com:443 "GET /v5/market/tickers?category=linear&symbol=SOLUSDT HTTP/1.1" 200 728
+2025-06-23 18:08:17,845 DEBUG https://api.bybit.com:443 "GET /v5/account/wallet-balance?accountType=UNIFIED&coin=USDT HTTP/1.1" 200 810
+2025-06-23 18:08:18,029 DEBUG https://api.bybit.com:443 "POST /v5/order/create HTTP/1.1" 200 137
+2025-06-25 10:48:36,557 DEBUG Initializing HTTP session.
+2025-06-25 10:48:36,561 DEBUG Starting new HTTPS connection (1): api.bybit.com:443
+2025-06-25 10:48:36,755 DEBUG https://api.bybit.com:443 "GET /v5/market/tickers?category=linear&symbol=ATOMUSDT HTTP/1.1" 200 711
+2025-06-25 10:48:36,949 DEBUG https://api.bybit.com:443 "GET /v5/account/wallet-balance?accountType=UNIFIED&coin=USDT HTTP/1.1" 200 808
+2025-06-25 10:48:37,169 DEBUG https://api.bybit.com:443 "POST /v5/order/create HTTP/1.1" 200 141
+2025-06-25 10:48:37,366 DEBUG https://api.bybit.com:443 "GET /v5/position/list?category=linear&symbol=ATOMUSDT HTTP/1.1" 200 870
+2025-06-25 10:48:37,533 DEBUG https://api.bybit.com:443 "POST /v5/position/set-leverage HTTP/1.1" 200 76
+2025-06-25 10:48:37,706 DEBUG https://api.bybit.com:443 "GET /v5/order/realtime?category=linear&symbol=ATOMUSDT HTTP/1.1" 200 1966

@@ -1,0 +1,5 @@
+2025-06-25 10:48:39,337 DEBUG Initializing HTTP session.
+2025-06-25 10:48:39,341 DEBUG Starting new HTTPS connection (1): api.bybit.com:443
+2025-06-25 10:48:39,516 DEBUG https://api.bybit.com:443 "GET /v5/market/tickers?category=linear&symbol=ATOMUSDT HTTP/1.1" 200 712
+2025-06-25 10:48:39,720 DEBUG https://api.bybit.com:443 "GET /v5/account/wallet-balance?accountType=UNIFIED&coin=USDT HTTP/1.1" 200 715
+2025-06-25 10:48:39,947 DEBUG https://api.bybit.com:443 "POST /v5/order/create HTTP/1.1" 200 131
