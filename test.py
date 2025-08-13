@@ -14,8 +14,11 @@ sender = YOUR_GOOGLE_EMAIL
 recipients = ["mauroalci@gmail.com", "drop.digital82@gmail.com"]
 #recipients = ["mauroalci@gmail.com"]
 
+VERSION = "0.1.0"  # versione del bot
+BOT_TAG = "BOT_HAWK"  # prefisso del bot
 TIMEFRAME=15
 ALERT=0.39
+LIMIT_OFFSET_PCT = 0.0018  # 0.18%
 
 # --- NUOVO: variabili per la gestione del rischio ---
 LEVERAGE = 20  # Leva da usare per le transazioni
@@ -103,6 +106,44 @@ def _has_open_position(client, symbol):
     
 # -----
 
+def calc_offset_limit_price(last_price: float, side: str, tick_size: float) -> float:
+    """
+    Calcola il prezzo LIMIT con offset 0.18% dal last:
+      - Buy (long): last * (1 - 0.0018)
+      - Sell (short): last * (1 + 0.0018)
+    e lo arrotonda al tick.
+    """
+    if side.lower() == "buy":
+        raw = last_price * (1.0 - LIMIT_OFFSET_PCT)
+    else:
+        raw = last_price * (1.0 + LIMIT_OFFSET_PCT)
+    return _round_to_step(raw, tick_size)
+
+import uuid
+
+
+
+def make_order_link_id(symbol: str, side: str) -> str:
+    return f"{BOT_TAG}-{symbol}-{side}-{int(time.time())}-{uuid.uuid4().hex[:6]}"
+
+def is_bot_order(order: dict) -> bool:
+    return (order.get("orderLinkId") or "").startswith(BOT_TAG)
+
+
+def place_market_order_avax(symbol: str, side: str, qty: float, sl_price: float, tp_price: float):
+    # Ordine MARKET istantaneo (non chiamato di default)
+    return http.place_order(
+        category="linear",
+        symbol=symbol,
+        side=side,
+        orderType="Market",
+        qty=str(qty),
+        timeInForce="GoodTillCancel",
+        stopLoss=str(sl_price),
+        takeProfit=str(tp_price),
+    )
+
+
 def esegui_trade_live_avax(delta_percent, ts_ms):
     symbol = "AVAXUSDT"
 
@@ -178,20 +219,41 @@ def esegui_trade_live_avax(delta_percent, ts_ms):
         # tp_price = _round_to_step(tp_price, tick_size)
         #print(f"sl_price {sl_price} {tp_price}") 
 
-        print(f"🚀 LIVE {side} {symbol} | qty={qty} | px≈{last_price} | SL={sl_price} | TP={tp_price} | leva={LEVERAGE}")
-        logging.warning(f"LIVE {side} {symbol} qty={qty} price≈{last_price} SL={sl_price} TP={tp_price} leverage={LEVERAGE}")
+        limit_price = calc_offset_limit_price(last_price, side, tick_size)
 
-        #ordine MARKET con stop loss
+        print(f"📌 LIMIT {side} {symbol} | qty={qty} | limit@{limit_price} "
+              f"(last={last_price}) | SL={sl_price} | TP={tp_price} | leva={LEVERAGE}")
+        logging.warning(f"LIMIT {side} {symbol} qty={qty} limit@{limit_price} last={last_price} "
+                        f"SL={sl_price} TP={tp_price} leverage={LEVERAGE}")
+        
+        link_id = make_order_link_id(symbol, side)
+        
         http.place_order(
             category="linear",
             symbol=symbol,
             side=side,
-            orderType="Market",
-            qty=str(qty),               # Bybit accetta string
-            timeInForce="GoodTillCancel",
-            stopLoss=str(sl_price),      # SL a livello di prezzo
-            takeProfit=str(tp_price)
+            orderType="Limit",
+            qty=str(qty),
+            price=str(limit_price),         # <= prezzo LIMIT con offset
+            timeInForce="GoodTillCancel",   # o "PostOnly" se vuoi forzare maker
+            stopLoss=str(sl_price),
+            takeProfit=str(tp_price),
+            orderLinkId=link_id 
         )
+
+        
+        #ordine MARKET
+        #place_market_order_avax(...)
+        # http.place_order(
+        #     category="linear",
+        #     symbol=symbol,
+        #     side=side,
+        #     orderType="Market",
+        #     qty=str(qty),               # Bybit accetta string
+        #     timeInForce="GoodTillCancel",
+        #     stopLoss=str(sl_price),      # SL a livello di prezzo
+        #     takeProfit=str(tp_price)
+        # )
 
         last_trade_ts[symbol] = ts_ms  # segna la candela
         print(f"✅ Ordine inviato su {symbol}.")
@@ -199,7 +261,7 @@ def esegui_trade_live_avax(delta_percent, ts_ms):
 
         try:
             summ_transaction = (
-                f"Ordine {side} su {symbol}\n Quantità: {qty} \nPrezzo: {last_price} \nSL: {sl_price} {SL_PERCENT}\nTP: {tp_price} {TP_PERCENT}\nLeva: {LEVERAGE}\n\n\nUSDT realmente impegnati: {disponibile * ORDER_PERCENT}\nUSDT (Leva) {order_value}\n AVAX reali {qt}\n AVAX (leva) {qty_raw}\n Saldo del conto: {disponibile}"
+                f"Ordine {side} su {symbol}\n Quantità: {qty} \nPrezzo: {last_price} \nSL: {sl_price} {SL_PERCENT}\nTP: {tp_price} {TP_PERCENT}\nLeva: {LEVERAGE}\n\n\nUSDT realmente impegnati: {disponibile * ORDER_PERCENT}\nUSDT (Leva) {order_value}\n AVAX reali {qt}\n AVAX (leva) {qty_raw}\n Saldo del conto: {disponibile}\n Scostamento: {LIMIT_OFFSET_PCT*100}%\n\n"
             )
             invia_email_transaction(summ_transaction)
         except Exception as e:
@@ -471,10 +533,15 @@ def invia_email_transaction(transaction_summary):
             smtp_server.sendmail(sender, recipients, msg.as_string())
 
 
-print("Avvio con valori")
+print("BOT HAWK - Versione:", VERSION)
 print("=========================")
 print(f"Timeframe: {TIMEFRAME} minuti")
 print(f"Soglia di alert: {ALERT:.2f}%")
+print(f"Capitale impegnato: {ORDER_PERCENT*100}%")
+print(f"SL impostato: {SL_PERCENT*100}%")
+print(f"TP impostato: {TP_PERCENT*100}%")
+print(f"Scostamento: {LIMIT_OFFSET_PCT*100}%")
+print(f"Leva: {LEVERAGE}x")
 print("=========================\n")
 
 # try:
