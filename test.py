@@ -14,7 +14,7 @@ sender = YOUR_GOOGLE_EMAIL
 recipients = ["mauroalci@gmail.com", "drop.digital82@gmail.com"]
 #recipients = ["mauroalci@gmail.com"]
 
-VERSION = "0.1.0"  # versione del bot
+VERSION = "0.1.1"  # versione del bot
 BOT_TAG = "BOT_HAWK"  # prefisso del bot
 TIMEFRAME=15
 ALERT=0.39
@@ -138,7 +138,7 @@ def place_market_order_avax(symbol: str, side: str, qty: float, sl_price: float,
         side=side,
         orderType="Market",
         qty=str(qty),
-        timeInForce="GoodTillCancel",
+        timeInForce="GTC",
         stopLoss=str(sl_price),
         takeProfit=str(tp_price),
     )
@@ -228,18 +228,18 @@ def esegui_trade_live_avax(delta_percent, ts_ms):
         
         link_id = make_order_link_id(symbol, side)
         
-        http.place_order(
-            category="linear",
-            symbol=symbol,
-            side=side,
-            orderType="Limit",
-            qty=str(qty),
-            price=str(limit_price),         # <= prezzo LIMIT con offset
-            timeInForce="GoodTillCancel",   # o "PostOnly" se vuoi forzare maker
-            stopLoss=str(sl_price),
-            takeProfit=str(tp_price),
-            orderLinkId=link_id 
-        )
+        # http.place_order(
+        #     category="linear",
+        #     symbol=symbol,
+        #     side=side,
+        #     orderType="Limit",
+        #     qty=str(qty),
+        #     price=str(limit_price),         # <= prezzo LIMIT con offset
+        #     timeInForce="GTC",   # o "PostOnly" se vuoi forzare maker
+        #     stopLoss=str(sl_price),
+        #     takeProfit=str(tp_price),
+        #     orderLinkId=link_id 
+        # )
 
         
         #ordine MARKET

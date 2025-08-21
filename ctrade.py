@@ -23,6 +23,9 @@ import logging
 from pathlib import Path
 from datetime import datetime
 import pytz
+from dotenv import load_dotenv
+load_dotenv()  # carica automaticamente le variabili dal file .env
+
 
 from pybit.unified_trading import HTTP, WebSocket
 
@@ -35,11 +38,11 @@ CATEGORY = "linear"  # solo perpetual USDT
 # Modalità dimensionamento size sul FOLLOWER
 # - "multiplier": qty_follower = qty_master * QTY_MULTIPLIER
 # - "wallet_ratio": scala in base al rapporto di USDT disponibili (follower/master)
-SIZE_MODE = "multiplier"  # oppure "wallet_ratio"
+SIZE_MODE = "wallet_ratio"  # oppure "wallet_ratio"
 QTY_MULTIPLIER = 1.0
 
 # Leva da impostare (se None non forza la leva)
-LEVERAGE = 10
+LEVERAGE = 20
 
 # Whitelist simboli da copiare (None per tutti i simboli linear, es. ["BTCUSDT", "ETHUSDT"])
 SYMBOL_WHITELIST = None
@@ -65,6 +68,7 @@ logging.basicConfig(
     ]
 )
 log = logging.getLogger("copy_trader")
+log.setLevel(logging.DEBUG)
 
 # ============================
 # UTILS
@@ -83,6 +87,11 @@ def load_map():
         except Exception:
             return {}
     return {}
+
+import uuid
+
+def generate_link_id(prefix="COPY"):
+    return f"{prefix}_{int(time.time()*1000)}_{uuid.uuid4().hex[:6]}"
 
 
 def save_map(m: dict):
@@ -152,24 +161,39 @@ def ensure_leverage(http: HTTP, symbol: str, leverage: int | None) -> None:
 
 def should_copy_symbol(symbol: str) -> bool:
     if CATEGORY != "linear":
-        return True
+        return True    
     if SYMBOL_WHITELIST is None:
         return symbol.endswith("USDT")  # semplice filtro per perp USDT
     return symbol in SYMBOL_WHITELIST
 
 
 def scale_quantity(qty_master: float, http_master: HTTP, http_follower: HTTP, symbol: str) -> float:
-    if SIZE_MODE == "multiplier":
-        return qty_master * float(QTY_MULTIPLIER)
-    # wallet_ratio
     try:
+        # saldo disponibile
         m = get_wallet_available_usdt(http_master)
         f = get_wallet_available_usdt(http_follower)
-        if m <= 0:
-            return qty_master  # fallback 1:1
-        factor = max(0.0, f / m)
-        return qty_master * factor
-    except Exception:
+
+        if m <= 0 or f <= 0:
+            return qty_master  # fallback
+
+        # prezzo corrente master e follower (dovrebbero essere uguali, ma prendiamo follower)
+        ticker_f = http_follower.get_tickers(category=CATEGORY, symbol=symbol)["result"]["list"][0]
+        price_f = float(ticker_f["lastPrice"])
+
+        ticker_m = http_master.get_tickers(category=CATEGORY, symbol=symbol)["result"]["list"][0]
+        price_m = float(ticker_m["lastPrice"])
+
+        # % di capitale usato dal master
+        notional_master = qty_master * price_m
+        percent = notional_master / m
+
+        # calcola notional corrispondente sul follower
+        notional_follow = f * percent
+        qty_follow = notional_follow / price_f
+
+        return qty_follow
+    except Exception as e:
+        log.error(f"scale_quantity errore: {e}")
         return qty_master
 
 
@@ -198,12 +222,9 @@ def mirror_place_order(master_http: HTTP, follower_http: HTTP, order: dict):
             return
 
         qty_step, px_step, min_qty = get_filters(follower_http, symbol)
-
-        # dimensionamento
         qty_follow = max(scale_quantity(qty_master, master_http, follower_http, symbol), min_qty)
         qty_follow = _round_to_step(qty_follow, qty_step)
 
-        # normalizza prezzo se Limit
         if order_type == "Limit" and price is not None:
             try:
                 price = float(price)
@@ -229,29 +250,33 @@ def mirror_place_order(master_http: HTTP, follower_http: HTTP, order: dict):
         if order_type == "Limit" and price is not None:
             params["price"] = str(price)
 
-        # TP/SL al livello ordine (Bybit applica a posizione in one-way)
         if take_profit:
             params["takeProfit"] = str(take_profit)
         if stop_loss:
             params["stopLoss"] = str(stop_loss)
 
-        # Conditional/Stop
         if trigger_price:
             params["triggerPrice"] = str(trigger_price)
             if trigger_direction:
                 params["triggerDirection"] = trigger_direction
 
+        # 👇 QUI ora il log è valido perché tutte le variabili sono definite
+        log.info(f"MASTER→FOLLOW {symbol} {side} {order_type} qty_master={qty_master}→qty_follow={qty_follow} price={price}")
         log.info(f"→ FOLLOW place_order {params}")
+
         resp = follower_http.place_order(**params)
+        log.info(f"FOLLOWER RESPONSE: {resp}")
         rc = resp.get("retCode")
         if rc != 0:
             log.warning(f"place_order follower KO: {resp}")
             return
+
         follower_oid = resp["result"].get("orderId")
         master_oid = str(order.get("orderId") or order.get("orderLinkId"))
         if master_oid and follower_oid:
             ID_MAP[master_oid] = follower_oid
             save_map(ID_MAP)
+
     except Exception as e:
         log.error(f"mirror_place_order errore: {e}")
 
@@ -285,16 +310,30 @@ def mirror_cancel_order(follower_http: HTTP, order: dict):
 
 
 def mirror_market_from_execution(master_http: HTTP, follower_http: HTTP, exec_msg: dict):
-    """Se vediamo un'esecuzione MARKET sul master (p.es. ordine piazzato e riempito al volo),
-    apriamo un MARKET equivalente sul follower per "agganciare" la posizione."""
+    """Replica un ordine Market già eseguito sul MASTER aprendo un Market equivalente sul FOLLOWER."""
     try:
+
+        link_id_source = str(exec_msg.get("orderId") or int(time.time()*1000))
+        link_id_short = link_id_source[:20]  # taglia a max 20 caratteri
+        link_id = f"COPY_{link_id_short}"
+        #link_id = generate_link_id("COPY")        
+
         symbol = exec_msg.get("symbol")
         if not symbol or not should_copy_symbol(symbol):
             return
+
         side = exec_msg.get("side")  # Buy/Sell
-        exec_qty = float(exec_msg.get("execQty") or 0)
+
+        # Prova a prendere la size dall'execution o dall'ordine
+        exec_qty = float(
+            exec_msg.get("execQty") or
+            exec_msg.get("cumExecQty") or
+            exec_msg.get("qty") or 0
+        )
         if exec_qty <= 0:
+            log.warning(f"⚠️ Nessuna quantità valida nell'evento Market Filled: {exec_msg}")
             return
+
         qty_step, _, min_qty = get_filters(follower_http, symbol)
         qty_follow = max(scale_quantity(exec_qty, master_http, follower_http, symbol), min_qty)
         qty_follow = _round_to_step(qty_follow, qty_step)
@@ -306,42 +345,62 @@ def mirror_market_from_execution(master_http: HTTP, follower_http: HTTP, exec_ms
             orderType="Market",
             qty=str(qty_follow),
             timeInForce="ImmediateOrCancel",
-            orderLinkId=f"COPY_EXEC_{exec_msg.get('orderId') or int(time.time()*1000)}",
+            orderLinkId=generate_link_id("COPY"),
         )
+
         log.info(f"→ FOLLOW market(place) from exec {params}")
-        follower_http.place_order(**params)
+        resp = follower_http.place_order(**params)
+        log.info(f"FOLLOWER RESPONSE: {resp}")
     except Exception as e:
         log.error(f"mirror_market_from_execution errore: {e}")
-
 
 # ============================
 # WEBSOCKET HANDLERS (MASTER)
 # ============================
 
 def on_order(message: dict, master_http: HTTP, follower_http: HTTP):
-    """Gestisce stream PRIVATO "order" del MASTER.
-    Gli eventi tipici includono ordini nuovi, aggiornati, cancellati."""
+    """Gestisce stream PRIVATO 'order' del MASTER."""
     try:
-        if message.get("type") not in ("snapshot", "delta"):
-            return
-        data = message.get("data") or []
-        for ord_msg in data:
-            status = ord_msg.get("orderStatus") or ord_msg.get("status")
-            symbol = ord_msg.get("symbol")
-            oid = ord_msg.get("orderId")
-            log.info(f"MASTER order event {symbol} {status} oid={oid}")
+        log.debug(f"RAW ORDER MESSAGE: {json.dumps(message, ensure_ascii=False)}")
 
-            if status in ("Created", "New", "Untriggered", "PartiallyFilled"):
-                mirror_place_order(master_http, follower_http, ord_msg)
-            elif status in ("Cancelled", "Rejected"):
-                mirror_cancel_order(follower_http, ord_msg)
-            # Modifiche TP/SL basiche
-            elif status == "Amended":
-                # strategia semplice: cancella e reinvia (facile, non ottimale)
-                mirror_cancel_order(follower_http, ord_msg)
-                mirror_place_order(master_http, follower_http, ord_msg)
+        # if message.get("type") not in ("snapshot", "delta"):
+        #     return
+        data = message.get("data") or []
+        if not data:
+            log.debug("Nessun ordine nel messaggio ricevuto")
+            return
+
+        for ord_msg in data:
+            try:
+                status = ord_msg.get("orderStatus") or ord_msg.get("status")
+                symbol = ord_msg.get("symbol")
+                oid = ord_msg.get("orderId")
+                log.info(f"MASTER order event {symbol} {status} oid={oid}")
+
+                if status in ("Created", "New", "Untriggered", "PartiallyFilled"):
+                    mirror_place_order(master_http, follower_http, ord_msg)
+
+                elif status == "Filled":
+                    # Se ordine Market eseguito subito → apri Market sul follower
+                    cum_exec_qty = float(ord_msg.get("cumExecQty") or 0)
+                    if ord_msg.get("orderType") == "Market" and cum_exec_qty > 0:
+                        log.info(f"MASTER Market Filled immediato → replica con execution mirror. cumExecQty={cum_exec_qty}")
+                        mirror_market_from_execution(master_http, follower_http, ord_msg)
+                    else:
+                        mirror_place_order(master_http, follower_http, ord_msg)
+
+                elif status in ("Cancelled", "Rejected"):
+                    mirror_cancel_order(follower_http, ord_msg)
+
+                elif status == "Amended":
+                    mirror_cancel_order(follower_http, ord_msg)
+                    mirror_place_order(master_http, follower_http, ord_msg)
+
+            except Exception as inner:
+                log.error(f"Errore interno processando ord_msg: {inner} | RAW={ord_msg}")
+
     except Exception as e:
-        log.error(f"on_order errore: {e}")
+        log.error(f"on_order errore livello messaggio: {e} | RAW={message}")
 
 
 def on_stop_order(message: dict, master_http: HTTP, follower_http: HTTP):
@@ -360,21 +419,19 @@ def on_stop_order(message: dict, master_http: HTTP, follower_http: HTTP):
 
 
 def on_execution(message: dict, master_http: HTTP, follower_http: HTTP):
-    """Gestione stream "execution" del MASTER: utile per MARKET riempiti al volo."""
     try:
         if message.get("type") not in ("snapshot", "delta"):
             return
         for ex in (message.get("data") or []):
-            exec_type = ex.get("execType")  # Trade, Funding, BustTrade, etc.
+            log.debug(f"RAW EXECUTION: {json.dumps(ex, ensure_ascii=False)}")
+            exec_type = ex.get("execType")
             if exec_type != "Trade":
                 continue
-            # se l'ordine era market, potremmo non aver visto un evento "order Created"
             ord_type = ex.get("orderType")
             if ord_type == "Market":
                 mirror_market_from_execution(master_http, follower_http, ex)
     except Exception as e:
         log.error(f"on_execution errore: {e}")
-
 
 # ============================
 # MAIN
